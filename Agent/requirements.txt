@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+crewai
+langchain
+langchain-community
+chromadb
+tree-sitter
+tree-sitter-python
+tree-sitter-c-sharp
+httpx
+python-dotenv
+cryptography
