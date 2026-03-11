@@ -1,4 +1,7 @@
+import logging
 from services.rag_service import rag_service
+
+logger = logging.getLogger("lifecycle")
 
 class LifecycleService:
     @staticmethod
@@ -6,7 +9,7 @@ class LifecycleService:
         """
         Store the PR analysis and commit details into the Vector DB for future reference.
         """
-        print(f"Learning from PR #{pr_number} in {repository}")
+        logger.info(f"Learning from PR #{pr_number} in {repository}")
         
         # In a real scenario, we might want to iterate over changed files 
         # but for now we store the overall PR analysis as a context for those files.

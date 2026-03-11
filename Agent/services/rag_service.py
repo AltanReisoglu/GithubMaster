@@ -1,4 +1,4 @@
-﻿"""
+"""
 RAG service backed by OpenRAG (https://github.com/langflow-ai/openrag).
 
 OpenRAG is a server-based RAG platform.  Start it before running the agent:
@@ -10,9 +10,12 @@ SDK docs: https://pypi.org/project/openrag-sdk/
 import io
 import asyncio
 import concurrent.futures
+import logging
 
 from openrag_sdk import OpenRAGClient
 from config import config
+
+logger = logging.getLogger("rag_service")
 
 
 # -- Async helper -------------------------------------------------------------
@@ -62,15 +65,19 @@ class RAGService:
         file_path: str,
         diff_content: str,
         commit_message: str,
+        full_content: str = "",
     ) -> None:
-        """Upload one file diff to OpenRAG as a plain-text document."""
+        """Upload one file diff (and full content) to OpenRAG as a plain-text document."""
         document = (
             f"Repository: {repo}\n"
             f"File: {file_path}\n"
             f"Commit SHA: {commit_sha}\n"
             f"Commit Message: {commit_message}\n"
-            f"Diff:\n{diff_content[:4000]}"
+            f"Diff:\n{diff_content[:4000]}\n"
         )
+        if full_content:
+             document += f"\n--- Full File Content at this commit ---\n{full_content}"
+             
         filename = self._make_filename(repo, file_path, commit_sha)
         async with self._client() as client:
             await client.documents.ingest(
@@ -86,12 +93,13 @@ class RAGService:
         file_path: str,
         diff_content: str,
         commit_message: str = "",
+        full_content: str = "",
     ) -> None:
-        """Sync entry-point: persist a commit diff into OpenRAG."""
+        """Sync entry-point: persist a commit diff and full state into OpenRAG."""
         try:
-            _run_async(self._ingest_async(repo, commit_sha, file_path, diff_content, commit_message))
+            _run_async(self._ingest_async(repo, commit_sha, file_path, diff_content, commit_message, full_content))
         except Exception as e:
-            print(f"[RAGService] Failed to ingest diff for {file_path}: {e}")
+            logger.error(f"Failed to ingest diff for {file_path}: {e}")
 
     # -- Retrieval -------------------------------------------------------------
 
@@ -109,7 +117,7 @@ class RAGService:
         try:
             return _run_async(self._search_async(file_path, code_snippet, n_results))
         except Exception as e:
-            print(f"[RAGService] Search failed: {e}")
+            logger.error(f"Search failed: {e}")
             return []
 
     # -- Async wrappers for FastAPI endpoints ----------------------------------

@@ -1,12 +1,15 @@
 import hmac
 import hashlib
+import logging
 from fastapi import APIRouter, Request, HTTPException, Header
 from config import config
 
 router = APIRouter()
+logger = logging.getLogger("webhook")
 
 async def verify_signature(request: Request, x_hub_signature_256: str):
     if not config.GITHUB_WEBHOOK_SECRET:
+        logger.warning("GITHUB_WEBHOOK_SECRET is not set. Application is running with wide-open webhooks (Security Risk!)")
         return True
         
     body = await request.body()
@@ -17,6 +20,7 @@ async def verify_signature(request: Request, x_hub_signature_256: str):
     ).hexdigest()
     
     if not hmac.compare_digest(signature, x_hub_signature_256):
+        logger.error("Invalid webhook signature received.")
         raise HTTPException(status_code=401, detail="Invalid signature")
 
 @router.post("/github")
@@ -47,21 +51,24 @@ async def handle_push_event(payload: dict):
     commits = payload.get("commits", [])
     commit_message = commits[-1].get("message", "") if commits else ""
 
-    print(f"Processing push commit {commit_sha} in {repository}")
+    logger.info(f"Processing push commit {commit_sha} in {repository}")
 
     if commit_sha and repository:
         diff_text = await github_service.get_commit_diff(repository, commit_sha)
         if diff_text:
             filtered = FileFilter.filter_diff(diff_text)
             for item in filtered:
+                path = item["file"]
+                full_content = await github_service.get_file_content(repository, path, commit_sha) or ""
                 rag_service.store_commit_diff(
                     repo=repository,
                     commit_sha=commit_sha,
-                    file_path=item["file"],
+                    file_path=path,
                     diff_content=item["diff"],
                     commit_message=commit_message,
+                    full_content=full_content,
                 )
-            print(f"Stored {len(filtered)} file diffs in vector DB for commit {commit_sha}")
+            logger.info(f"Stored {len(filtered)} file diffs in vector DB for commit {commit_sha}")
 
     return {"status": "accepted", "event": "push"}
 
@@ -74,13 +81,18 @@ from services.lifecycle_service import lifecycle_service
 
 async def handle_pull_request_event(payload: dict):
     action = payload.get("action")
-    pr_number = payload.get("number")
+    pr_number_raw = payload.get("number")
     repository = payload.get("repository", {}).get("full_name")
+
+    if pr_number_raw is None or repository is None:
+         return {"status": "ignored", "message": "Missing PR number or repository"}
+         
+    pr_number = int(pr_number_raw)
 
     # PR merged — learn from it
     if action == "closed" and payload.get("pull_request", {}).get("merged"):
         commit_msg = payload.get("pull_request", {}).get("title", "")
-        print(f"PR #{pr_number} merged. Learning from the changes...")
+        logger.info(f"PR #{pr_number} merged. Learning from the changes...")
         await lifecycle_service.learn_from_merged_pr(
             repository, 
             pr_number, 
@@ -91,14 +103,15 @@ async def handle_pull_request_event(payload: dict):
 
     # PR opened or updated — run analysis
     if action in ["opened", "synchronize"]:
-        print(f"Processing PR #{pr_number} in {repository}")
+        logger.info(f"Processing PR #{pr_number} in {repository}")
         
         diff_text = await github_service.get_pull_request_diff(repository, pr_number)
         if not diff_text:
+            logger.error(f"Failed to fetch diff for PR #{pr_number}")
             return {"status": "error", "message": "Failed to fetch diff"}
             
         filtered_changes = FileFilter.filter_diff(diff_text)
-        print(f"Filtered {len(filtered_changes)} files for analysis.")
+        logger.info(f"Filtered {len(filtered_changes)} files for analysis in PR #{pr_number}.")
         
         files_data = []
         for change in filtered_changes:
@@ -109,13 +122,11 @@ async def handle_pull_request_event(payload: dict):
                 repository, path, payload['pull_request']['head']['sha']
             )
             skeleton = ast_service.get_skeleton(path, full_content) if full_content else ""
-            history = await rag_service.query_history(path, diff)
             
             files_data.append({
                 "path": path,
                 "diff": diff,
-                "skeleton": skeleton,
-                "history": history
+                "skeleton": skeleton
             })
             
         if files_data:

@@ -104,10 +104,11 @@ For each finding:
 If no issues are found, state "No security issues detected."
 """,
             agent=agent,
-            expected_output="A structured security audit report for the file."
+            expected_output="A structured security audit report for the file.",
+            async_execution=True
         )
 
-    def _create_quality_task(self, agent, file_path, diff_content, skeleton, history):
+    def _create_quality_task(self, agent, file_path, diff_content, skeleton):
         return Task(
             description=f"""Review the following code changes for quality issues.
 
@@ -121,8 +122,7 @@ GIT DIFF:
 CODE STRUCTURE (AST):
 {skeleton}
 
-PREVIOUS ANALYSIS CONTEXT:
-{history}
+Feel free to use the `Code History RAG` tool if you need to understand previous variations of this file.
 
 Your analysis MUST cover:
 1. Logic errors and potential bugs
@@ -140,7 +140,8 @@ For each finding, provide:
 If the code is clean, state "No quality issues detected."
 """,
             agent=agent,
-            expected_output="A structured code quality report for the file."
+            expected_output="A structured code quality report for the file.",
+            async_execution=True
         )
 
     def _create_synthesis_task(self, agent, all_reports):
@@ -196,8 +197,7 @@ OUTPUT FORMAT (Markdown):
                 quality_agent,
                 file['path'],
                 file['diff'],
-                file['skeleton'],
-                file['history']
+                file['skeleton']
             )
             all_tasks.extend([sec_task, qual_task])
 
@@ -217,7 +217,7 @@ OUTPUT FORMAT (Markdown):
             tasks=[synth_task],
             verbose=True
         )
-        return reduce_crew.kickoff()
+        return str(reduce_crew.kickoff())
 
 
 review_crew = CodeReviewCrew()
