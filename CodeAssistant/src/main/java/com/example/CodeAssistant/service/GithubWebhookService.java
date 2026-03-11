@@ -41,8 +41,9 @@ public class GithubWebhookService {
             repoFullName = event.repository().html_url().replace("https://github.com/", "");
         }
 
-        String commitId = null;
-        if (commits != null && !commits.isEmpty()) {
+        // Use the 'after' field (latest commit SHA) from the push event
+        String commitId = event.after();
+        if (commitId == null && commits != null && !commits.isEmpty()) {
             commitId = commits.get(commits.size() - 1).id();
         }
 

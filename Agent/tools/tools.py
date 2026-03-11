@@ -1,4 +1,5 @@
 import re
+import asyncio
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 from typing import Type
@@ -54,3 +55,31 @@ class ComplexityTool(BaseTool):
             return f"Complexity Score: {complexity}. Status: MODERATE. Recommendation: Consider simplifying."
         else:
             return f"Complexity Score: {complexity}. Status: LOW. Good readability."
+
+
+class CodeRAGInput(BaseModel):
+    """Input schema for CodeRAGTool."""
+    file_path: str = Field(..., description="Path of the file being analysed (e.g. 'src/auth.py').")
+    code_snippet: str = Field(..., description="Short code snippet or diff excerpt to find semantically similar historical commits.")
+
+
+class CodeRAGTool(BaseTool):
+    name: str = "Code History RAG"
+    description: str = (
+        "Searches the vector database for past commits that touched the given file. "
+        "Returns historical diffs and commit messages so you can spot recurring bugs, "
+        "security patterns, or previous fixes for the same code area."
+    )
+    args_schema: Type[BaseModel] = CodeRAGInput
+
+    def _run(self, file_path: str, code_snippet: str) -> str:
+        from services.rag_service import rag_service
+        results = rag_service.query_file_history(file_path, code_snippet, n_results=3)
+        if not results:
+            return "No historical commits found for this file in the vector database."
+        formatted = []
+        for i, doc in enumerate(results, 1):
+            formatted.append(f"--- Historical Entry {i} ---\n{doc}")
+        return "\n\n".join(formatted)
+        
+

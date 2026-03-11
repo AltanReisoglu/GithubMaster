@@ -2,12 +2,14 @@ fastapi
 uvicorn
 pydantic
 crewai
+crewai-tools
 langchain
 langchain-community
-chromadb
+openrag-sdk
 tree-sitter
 tree-sitter-python
 tree-sitter-c-sharp
+tree-sitter-java
 httpx
 python-dotenv
 cryptography

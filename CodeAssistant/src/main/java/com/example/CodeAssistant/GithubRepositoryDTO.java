@@ -1,3 +1,6 @@
 package com.example.CodeAssistant;
 
-public record GithubRepositoryDTO(String html_url, String full_name) { }
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record GithubRepositoryDTO(String html_url, String full_name) {}

@@ -66,7 +66,9 @@ public class GithubWebhookSignatureFilter extends OncePerRequestFilter {
                 return;
             }
         }catch (NoSuchAlgorithmException | InvalidKeyException e) {
-
+            System.err.println("Signature verification error: " + e.getMessage());
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return;
         }
     }
 

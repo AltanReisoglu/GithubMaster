@@ -1,5 +1,13 @@
 package com.example.CodeAssistant;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
-public record GithubPushEventDTO(GithubRepositoryDTO repository, List<GithubCommitDTO> commits) { }
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record GithubPushEventDTO(
+    String ref,
+    String before,
+    String after,
+    GithubRepositoryDTO repository,
+    List<GithubCommitDTO> commits
+) {}
