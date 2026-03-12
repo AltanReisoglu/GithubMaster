@@ -1,5 +1,7 @@
 package com.example.CodeAssistant.security;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -19,6 +21,8 @@ import javax.crypto.spec.SecretKeySpec;
 @Component
 public class GithubWebhookSignatureFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(GithubWebhookSignatureFilter.class);
+
     @Value("${github.webhook.secret}")
     private String secretKey;
     private final String algorithm = "HmacSHA256";
@@ -28,7 +32,7 @@ public class GithubWebhookSignatureFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        if (!path.equals("/api/webhook/push")) {
+        if (!path.startsWith("/api/webhook/")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -41,8 +45,8 @@ public class GithubWebhookSignatureFilter extends OncePerRequestFilter {
 
         SecretKeySpec secretKeySpec = new SecretKeySpec(this.secretKey.getBytes(),algorithm);
 
-        System.out.println("Güvenlik Filtresi Devrede!");
-        System.out.println("Gelen İmza: " + githubSignature);
+        log.debug("Güvenlik Filtresi Devrede!");
+        log.debug("Gelen İmza: {}", githubSignature);
 
         try
         {
@@ -53,20 +57,20 @@ public class GithubWebhookSignatureFilter extends OncePerRequestFilter {
             byte[] payloadHashed = mac.doFinal(payloadBytes);
 
             String calculatedSignature = "sha256=" + bytesToHex(payloadHashed);
-            System.out.println("Hesaplanan secret : " + calculatedSignature);
+            log.debug("Hesaplanan secret: {}", calculatedSignature);
 
             if (githubSignature != null && MessageDigest.isEqual(calculatedSignature.getBytes(), githubSignature.getBytes())) {
-                System.out.println("İmza Doğrulandı! İstek içeri alınıyor.");
+                log.info("Webhook imzası doğrulandı — istek kabul edildi.");
 
                 filterChain.doFilter(wrappedRequest, response);
             } else {
-                System.out.println("SAHTE İSTEK! Kapıdan kovuldu.");
+                log.warn("Geçersiz webhook imzası! İstek reddedildi.");
 
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }
         }catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            System.err.println("Signature verification error: " + e.getMessage());
+            log.error("İmza doğrulama hatası: {}", e.getMessage(), e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             return;
         }
