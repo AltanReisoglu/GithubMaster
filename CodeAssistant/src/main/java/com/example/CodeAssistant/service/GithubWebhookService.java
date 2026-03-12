@@ -70,12 +70,6 @@ public class GithubWebhookService {
     public void processPullRequestEvent(GithubPullRequestEventDTO event) {
         String action = event.action();
 
-        // Sadece opened ve synchronize (yeni commit push'landığında) action'larını işle
-        if (!"opened".equals(action) && !"synchronize".equals(action)) {
-            log.info("PR action '{}' yoksayıldı (sadece opened/synchronize desteklenir).", action);
-            return;
-        }
-
         int prNumber = event.number();
         String repoFullName = resolveRepoFullName(
                 event.repository().full_name(),
@@ -84,6 +78,29 @@ public class GithubWebhookService {
 
         if (repoFullName == null) {
             log.error("PR event'ten repo adı çözümlenemedi. İşlem iptal.");
+            return;
+        }
+
+        // PR merged action
+        if ("closed".equals(action) && event.pullRequest() != null && event.pullRequest().merged()) {
+            log.info("PR #{} merged. Ajan PR'dan öğrenme (learning) modunda tetikleniyor.", prNumber);
+            
+            String commitMsg = event.pullRequest().title() != null ? event.pullRequest().title() : "Merged PR #" + prNumber;
+            
+            AgentAnalysisRequestDTO request = new AgentAnalysisRequestDTO(
+                    repoFullName,
+                    prNumber,
+                    commitMsg, // Using commitId to pass commit message for simplicity
+                    List.of(),
+                    "pr_merged"
+            );
+            agentClient.triggerAnalysis(request);
+            return;
+        }
+
+        // Sadece opened ve synchronize (yeni commit push'landığında) action'larını işle
+        if (!"opened".equals(action) && !"synchronize".equals(action)) {
+            log.info("PR action '{}' yoksayıldı (sadece opened/synchronize/merged desteklenir).", action);
             return;
         }
 

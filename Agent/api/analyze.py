@@ -28,6 +28,20 @@ async def process_analysis(request: AgentAnalysisRequest):
 
     files_data = []
 
+    # ─── PR Merged: Learn from PR ───
+    if request.eventType == "pr_merged" and request.prNumber:
+        logger.info(f"PR #{request.prNumber} merged. Muting normal analysis, learning from PR...")
+        # (Assuming commit msg is placed in the commitId field for this payload for simplicity)
+        commit_msg = request.commitId if request.commitId else f"Merged PR #{request.prNumber}"
+        from services.lifecycle_service import lifecycle_service
+        await lifecycle_service.learn_from_merged_pr(
+            request.repository, 
+            request.prNumber, 
+            commit_msg, 
+            "Self-learned from merged PR"
+        )
+        return
+
     # ─── PR event: Java gönderdiği dosya listesi boşsa, diff'i kendimiz çekeriz ───
     if request.eventType == "pull_request" and request.prNumber and not request.filesToAnalyze:
         logger.info(f"PR #{request.prNumber} diff çekiliyor...")
