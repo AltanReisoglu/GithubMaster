@@ -105,7 +105,7 @@ If no issues are found, state "No security issues detected."
 """,
             agent=agent,
             expected_output="A structured security audit report for the file.",
-            async_execution=True
+            async_execution=False
         )
 
     def _create_quality_task(self, agent, file_path, diff_content, skeleton):
@@ -141,7 +141,7 @@ If the code is clean, state "No quality issues detected."
 """,
             agent=agent,
             expected_output="A structured code quality report for the file.",
-            async_execution=True
+            async_execution=False
         )
 
     def _create_synthesis_task(self, agent, all_reports):
